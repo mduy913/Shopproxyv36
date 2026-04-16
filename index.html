@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>MDUY - SHOP QUẢN TRỊ</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root { --bg: #0b0b12; --cyan: #00f2ff; --gold: #ffcc00; --card: #1a1a2e; --red: #ff3333; --green: #00ff88; }
+        body { background: var(--bg); color: white; font-family: -apple-system, sans-serif; padding: 15px; margin: 0; }
+        .box { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #2a2a40; margin-bottom: 12px; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; box-sizing: border-box; outline: none; }
+        button { border: none; padding: 10px; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; transition: 0.2s; text-transform: uppercase; font-size: 12px; }
+        button:active { transform: scale(0.96); opacity: 0.9; }
+        .btn-main { background: var(--cyan); color: #000; }
+        .btn-gold { background: var(--gold); color: #000; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        table { width:100%; font-size:11px; border-collapse: collapse; }
+        td { padding: 8px 4px; border-bottom: 1px solid #222; }
+        #bt-screen { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.96); z-index:99999; text-align:center; padding-top:150px; }
+        #msg-box { display:none; position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border:2px solid var(--cyan); padding:20px; border-radius:15px; z-index:10000; text-align:center; width:80%; max-width:300px; box-shadow:0 0 30px #000; }
+    </style>
+</head>
+<body>
+
+    <div id="bt-screen"><h1 style="color:var(--red)">⚙️ BẢO TRÌ</h1><p>Hệ thống đang được sếp nâng cấp...</p></div>
+    <div id="msg-box"><p id="msg-text"></p><button class="btn-main" onclick="document.getElementById('msg-box').style.display='none'">OK</button></div>
+
+    <div id="auth-box" class="box" style="max-width:380px; margin:40px auto;">
+        <h2 style="text-align:center; color: var(--cyan);">SHOP MDUY</h2>
+        <div id="login-form">
+            <input type="text" id="au" placeholder="Tài khoản">
+            <input type="password" id="ap" placeholder="Mật khẩu">
+            <button class="btn-main" onclick="login()">ĐĂNG NHẬP</button>
+            <button style="background:none; color:#777; font-size:11px; margin-top:10px;" onclick="toggleAuth(true)">Đăng ký nick mới</button>
+        </div>
+        <div id="reg-form" style="display:none">
+            <input type="text" id="ru" placeholder="Tên nick">
+            <input type="password" id="rp" placeholder="Mật khẩu">
+            <button class="btn-main" style="background:var(--green)" onclick="register()">XÁC NHẬN TẠO</button>
+            <button style="background:none; color:#777; font-size:11px; margin-top:10px;" onclick="toggleAuth(false)">Quay lại</button>
+        </div>
+    </div>
+
+    <div id="shop-ui" style="display:none; max-width: 550px; margin: auto;">
+        <div id="adm-ctrl" class="box" style="display:none; border: 2px solid var(--red);">
+            <h3 style="color:var(--red); margin:0">QUẢN TRỊ</h3>
+            <button id="btn-bt" style="margin-top:10px;" onclick="toggleMaintenance()">BẢO TRÌ</button>
+            <h4 style="margin:15px 0 5px 0">DUYỆT NẠP:</h4>
+            <div id="adm-pay-list" style="max-height:150px; overflow:auto; background:#000; border-radius:5px;"></div>
+            <h4 style="margin:15px 0 5px 0">NGƯỜI DÙNG:</h4>
+            <div id="user-manager" style="max-height:200px; overflow:auto; background:#000; border-radius:5px; font-size:10px;"></div>
+        </div>
+
+        <div class="box">
+            <span>ID: <b id="u-id" style="color:var(--cyan)"></b></span> | Ví: <b id="u-bl" style="color:var(--gold)">0</b>đ
+            <input type="number" id="n-amt" placeholder="Số tiền nạp">
+            <button class="btn-gold" onclick="nap()">NẠP TIỀN QR</button>
+            <div id="qr" style="display:none; text-align:center; margin-top:10px; background:#fff; padding:10px; border-radius:8px;">
+                <img id="q-img" style="width:160px;">
+                <button class="btn-main" id="btn-cf" style="margin-top:10px;" onclick="guiDon()">XÁC NHẬN ĐÃ CHUYỂN</button>
+            </div>
+        </div>
+
+        <div class="box">
+            <h4>📜 LỊCH SỬ</h4>
+            <table><tbody id="h-pay"></tbody></table>
+        </div>
+    </div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyConfWoy6ZpuW4mgGM8AFBhoyupsWBJnQ0",
+        authDomain: "shopmduy.firebaseapp.com",
+        databaseURL: "https://shopmduy-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "shopmduy",
+        storageBucket: "shopmduy.firebasestorage.app",
+        messagingSenderId: "671142246607",
+        appId: "1:671142246607:web:816cd666ebf34c999b9fba"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let cur = null, curUID = null, isAdmin = false;
+
+    db.ref('settings/maintenance').on('value', s => {
+        const isBT = s.val();
+        document.getElementById('bt-screen').style.display = (isBT && !isAdmin) ? 'block' : 'none';
+        if(isAdmin) {
+            document.getElementById('btn-bt').innerText = isBT ? "TẮT BẢO TRÌ" : "BẬT BẢO TRÌ";
+            document.getElementById('btn-bt').style.background = isBT ? "var(--green)" : "var(--red)";
+        }
+    });
+
+    function showMsg(txt) { document.getElementById('msg-text').innerText = txt; document.getElementById('msg-box').style.display = 'block'; }
+
+    function login(){
+        const u = document.getElementById('au').value.trim().toLowerCase(), p = document.getElementById('ap').value;
+        db.ref('users/'+u).once('value', s => {
+            const d = s.val();
+            if(d && d.password == p){
+                cur = u; curUID = d.uid; isAdmin = (d.role === 'admin');
+                document.getElementById('auth-box').style.display='none';
+                document.getElementById('shop-ui').style.display='block';
+                document.getElementById('u-id').innerText = u;
+                if(isAdmin) { document.getElementById('adm-ctrl').style.display='block'; loadAdminData(); loadAllUsers(); }
+                db.ref('users/'+u+'/balance').on('value', b => document.getElementById('u-bl').innerText = (b.val()||0).toLocaleString());
+                loadHistory();
+            } else showMsg("Sai thông tin!");
+        });
+    }
+
+    function loadAdminData() {
+        db.ref('bank_requests').on('value', s => {
+            const container = document.getElementById('adm-pay-list'); container.innerHTML = "";
+            s.forEach(c => {
+                const r = c.val();
+                if(r.status === 'Pending') {
+                    container.innerHTML += `<div style="padding:8px; border-bottom:1px solid #222;">
+                        ${r.user} - ${Number(r.amount).toLocaleString()}đ
+                        <div class="grid"><button style="background:var(--green);" onclick="approvePay('${c.key}','${r.user}','${r.uid}',${r.amount})">DUYỆT</button>
+                        <button style="background:var(--red); color:#fff;" onclick="rejectPay('${c.key}','${r.uid}')">HỦY</button></div></div>`;
+                }
+            });
+        });
+    }
+
+    function loadAllUsers() {
+        db.ref('users').on('value', s => {
+            const container = document.getElementById('user-manager'); container.innerHTML = "";
+            s.forEach(c => {
+                const u = c.val();
+                container.innerHTML += `<div style="padding:8px; border-bottom:1px solid #222; display:flex; justify-content:space-between;">
+                    <span><b>${c.key}</b> (${Number(u.balance).toLocaleString()}đ)</span>
+                    <div style="display:flex; gap:5px;">
+                        <button style="padding:2px 8px; background:var(--cyan); color:#000;" onclick="editUserMoney('${c.key}')">UP</button>
+                        <button style="padding:2px 8px; background:var(--red); color:#fff;" onclick="deleteUser('${c.key}')">XÓA</button>
+                    </div></div>`;
+            });
+        });
+    }
+
+    function editUserMoney(user) {
+        const m = prompt("Cộng/Trừ tiền khách:");
+        if(m) db.ref('users/'+user+'/balance').transaction(b => (b || 0) + Number(m));
+    }
+
+    function deleteUser(user) { if(confirm("Xóa nick?")) db.ref('users/'+user).remove(); }
+    function approvePay(id, user, uid, amt) {
+        db.ref('users/'+user+'/balance').transaction(b => (b || 0) + Number(amt));
+        db.ref('bank_requests/'+id).update({status: 'Success'});
+        db.ref('history_pay/'+uid+'/'+id).update({status: 'Success'});
+    }
+    function rejectPay(id, uid) { db.ref('bank_requests/'+id).remove(); db.ref('history_pay/'+uid+'/'+id).update({status: 'Fail'}); }
+    function toggleMaintenance() { db.ref('settings/maintenance').once('value', s => db.ref('settings/maintenance').set(!s.val())); }
+
+    function nap(){
+        const a = document.getElementById('n-amt').value;
+        if(a < 1000) return showMsg("Tối thiểu 1k!");
+        document.getElementById('q-img').src = `https://qr.sepay.vn/img?acc=0588807300000&bank=MB&amount=${a}&des=NAP%20${cur}`;
+        document.getElementById('qr').style.display='block';
+    }
+
+    function guiDon(){
+        const amt = Number(document.getElementById('n-amt').value);
+        const rid = db.ref('bank_requests').push().key, t = new Date().toLocaleTimeString();
+        db.ref('bank_requests/'+rid).set({user:cur, uid:curUID, amount:amt, status:'Pending', id:rid, time:t})
+        .then(() => db.ref('history_pay/'+curUID+'/'+rid).set({time:t, amount:amt, status:'Pending', id:rid}))
+        .then(() => { showMsg("Đã gửi đơn!"); document.getElementById('qr').style.display='none'; });
+    }
+
+    function loadHistory() {
+        db.ref('history_pay/'+curUID).on('value', h => {
+            const t = document.getElementById('h-pay'); t.innerHTML = "";
+            h.forEach(c => {
+                const i = c.val();
+                t.innerHTML = `<tr><td>${i.time}</td><td style="text-align:right">${Number(i.amount).toLocaleString()}</td><td style="text-align:right; font-weight:bold" class="st-${i.status}">${i.status}</td></tr>` + t.innerHTML;
+            });
+        });
+    }
+
+    function register() {
+        const u = document.getElementById('ru').value.trim().toLowerCase(), p = document.getElementById('rp').value;
+        if(!u || !p) return showMsg("Nhập đủ thông tin!");
+        db.ref('users/'+u).once('value', sn => {
+            if(sn.exists()) return showMsg("Nick đã tồn tại!");
+            db.ref('users/'+u).set({password: p, balance: 0, role: 'user', uid: "U"+Date.now()}).then(() => { showMsg("Đã tạo nick!"); location.reload(); });
+        });
+    }
+    function toggleAuth(r) { document.getElementById('login-form').style.display = r?'none':'block'; document.getElementById('reg-form').style.display = r?'block':'none'; }
+</script>
+</body>
+</html>
